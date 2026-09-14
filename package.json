@@ -1,0 +1,9 @@
+{
+  "name": "poly-paper",
+  "version": "0.0.1",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
