@@ -1,6 +1,6 @@
 import { WebSocket } from "ws";
 
-import { parseOrderbook } from "../../client/orderbook.js";
+import { parseOrderbook } from "../orderbook.js";
 import { getLogger } from "../../logging.js";
 import { Signal, sleep } from "../../utils/signal.js";
 import type { OrderBook } from "../../types.js";

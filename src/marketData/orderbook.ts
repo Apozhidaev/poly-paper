@@ -33,30 +33,8 @@ export async function getOrderbook(tokenId: string): Promise<OrderBook | null> {
   return parseOrderbook(raw);
 }
 
-function orderbooksInTokenOrder(
-  tokenIds: string[],
-  rawOrderbooks: Record<string, unknown>[],
-): OrderBook[] {
-  const byAssetId = new Map<string, OrderBook>();
-  for (const raw of rawOrderbooks) {
-    byAssetId.set(String(raw["asset_id"]), parseOrderbook(raw));
-  }
-  const result: OrderBook[] = [];
-  for (const tokenId of tokenIds) {
-    const orderbook = byAssetId.get(tokenId);
-    if (orderbook === undefined) return [];
-    result.push(orderbook);
-  }
-  return result;
-}
-
-export async function getOrderbooks(tokenIds: string[]): Promise<OrderBook[]> {
-  const rawOrderbooks = await polyGate.orderBooks(tokenIds);
-  return orderbooksInTokenOrder(tokenIds, rawOrderbooks);
-}
-
 /** API limit on the number of token_ids per order-books request. */
-export const MAX_ORDERBOOKS_BATCH = 500;
+const MAX_ORDERBOOKS_BATCH = 500;
 
 /** Books keyed by asset_id; missing ones are simply absent from the map. */
 export async function getOrderbooksMap(tokenIds: string[]): Promise<Map<string, OrderBook>> {

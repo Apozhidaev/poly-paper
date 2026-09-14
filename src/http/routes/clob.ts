@@ -1,0 +1,124 @@
+import type { FastifyPluginAsync } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
+
+import * as orderService from "../../service/orders.js";
+import * as walletService from "../../service/wallet.js";
+import { toClobOrder, toClobTrade } from "../clobFormat.js";
+import {
+  balanceReply,
+  cancelOrderBody,
+  cancelOrderReply,
+  clobOrderReply,
+  clobTradeReply,
+  errorReply,
+  orderIdParams,
+  postOrderBody,
+  postOrderReply,
+  tokenBalanceQuery,
+  userTradesQuery,
+} from "../schema.js";
+
+/** Emulated trading side of the CLOB, shaped exactly like the upstream gateway. */
+export const clobRoutes: FastifyPluginAsync = async (fastify) => {
+  const app = fastify.withTypeProvider<ZodTypeProvider>();
+
+  app.post(
+    "/clob/order",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Place a GTC limit order",
+        body: postOrderBody,
+        response: { 200: postOrderReply },
+      },
+    },
+    async (request) => {
+      const { tokenID, side, price, size } = request.body;
+      const result = await orderService.placeOrder({ tokenId: tokenID, side, price, size });
+      // A rejected order is a normal outcome, not a transport failure: the CLOB answers 200
+      // with success=false and so must we, or the robot sees an exception instead.
+      if (!result.success) return { success: false, errorMsg: result.errorMsg };
+      return { orderID: result.orderId, success: true };
+    },
+  );
+
+  app.delete(
+    "/clob/order",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Cancel a live order",
+        body: cancelOrderBody,
+        response: { 200: cancelOrderReply },
+      },
+    },
+    async (request) => {
+      const { orderID } = request.body;
+      const canceled = await orderService.cancelOrder(orderID);
+      if (canceled) return { canceled: [orderID], not_canceled: {}, success: true };
+      return {
+        canceled: [],
+        not_canceled: { [orderID]: "order is not live" },
+        success: false,
+      };
+    },
+  );
+
+  app.get(
+    "/clob/order/:orderID",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Order state by id",
+        params: orderIdParams,
+        response: { 200: clobOrderReply, 404: errorReply },
+      },
+    },
+    async (request, reply) => {
+      const order = await orderService.getOrder(request.params.orderID);
+      if (order === null) return reply.code(404).send({ error: "order not found" });
+      return toClobOrder(order);
+    },
+  );
+
+  app.get(
+    "/clob/user-trades",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Trades by trade id",
+        querystring: userTradesQuery,
+        response: { 200: clobTradeReply.array() },
+      },
+    },
+    async (request) => {
+      const trade = await orderService.getTrade(request.query.id);
+      return trade === null ? [] : [toClobTrade(trade)];
+    },
+  );
+
+  app.get(
+    "/clob/usdc-balance",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Spendable USDC (reserves excluded)",
+        response: { 200: balanceReply },
+      },
+    },
+    async () => ({ balance: await walletService.usdcBalance() }),
+  );
+
+  app.get(
+    "/clob/token-balance",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Free shares of one outcome token (reserves excluded)",
+        querystring: tokenBalanceQuery,
+        response: { 200: balanceReply },
+      },
+    },
+    async (request) => ({ balance: await walletService.tokenBalance(request.query.token_id) }),
+  );
+};

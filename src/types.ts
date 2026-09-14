@@ -7,18 +7,26 @@ export function nowMs(): Millis {
   return Date.now();
 }
 
-/** The gateway reports order and trade times in seconds; normalise them at the parsing boundary. */
+/** The CLOB reports order and trade times in seconds; normalise them at the parsing boundary. */
 export function secToMs(seconds: number): Millis {
   return seconds * 1000;
 }
 
+/** Inverse of `secToMs`, used when rendering CLOB-shaped responses. */
+export function msToSec(ms: Millis): number {
+  return Math.floor(ms / 1000);
+}
+
+export type OrderStatus =
+  | "LIVE"
+  | "MATCHED"
+  | "CANCELED"
+  | "CANCELED_MARKET_RESOLVED"
+  | "INVALID";
+
 export interface BookOrder {
   price: number;
   quantity: number;
-}
-
-export interface Depth extends BookOrder {
-  totQty: number;
 }
 
 export interface OrderBook {
@@ -28,25 +36,6 @@ export interface OrderBook {
   asks: BookOrder[];
   bids: BookOrder[];
   minOrderSize: number;
-  tickSize: number;
-  negRisk: boolean;
-}
-
-export interface TickInfo {
-  conditionId: string;
-  slug: string;
-  negRisk: boolean;
-  tickSize: number;
-  minOrderSize: number;
-  orderbooks: OrderBook[];
-}
-
-export interface PlaceOrderParams {
-  dealId: number;
-  assetId: string;
-  side: Side;
-  price: number;
-  size: number;
   tickSize: number;
   negRisk: boolean;
 }

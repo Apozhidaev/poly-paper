@@ -63,10 +63,16 @@ export class MessageQueue {
     args: any[];
   }) {
     return new Promise((resolve, reject) => {
-      Promise.resolve(fn(...args)).then(resolve, reject);
-      setTimeout(() => {
+      // The timer is cleared once the handler settles: with a one-second tick, leaving it
+      // armed for the whole timeout would pile up thousands of pending timers.
+      const timer = setTimeout(() => {
         reject(new EventError('Send message timeout', event));
       }, timeout || this.timeout);
+      const settle = (fn: (value: any) => void) => (value: any) => {
+        clearTimeout(timer);
+        fn(value);
+      };
+      Promise.resolve(fn(...args)).then(settle(resolve), settle(reject));
     });
   }
 

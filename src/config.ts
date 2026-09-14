@@ -8,12 +8,18 @@ const CONFIG_FILE = "config.yaml";
 let config: Record<string, unknown> = {};
 let loaded = false;
 
+/** `POLY_PAPER_CONFIG` overrides the path so tests can run without the repo config. */
+function configPath(): string {
+  const override = process.env["POLY_PAPER_CONFIG"];
+  return override === undefined ? join(process.cwd(), CONFIG_FILE) : override;
+}
+
 function load(): void {
   if (loaded) return;
   loaded = true;
   let raw: string;
   try {
-    raw = readFileSync(join(process.cwd(), CONFIG_FILE), "utf8");
+    raw = readFileSync(configPath(), "utf8");
   } catch {
     return;
   }

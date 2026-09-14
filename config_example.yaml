@@ -1,21 +1,33 @@
 log:
   level: DEBUG
+  # Записывать логи уровня info и выше в коллекцию `log`.
+  mongo: true
 
 db:
+  url: mongodb://127.0.0.1:27017
   name: poly_paper
-
-poly_gate:
-  url: http://localhost:8080
-  token: ""
-
-polymarket:
-  api_key: ""
-
-# Бумажный кошелёк (только для PaperExecution / PaperMarket)
-paper:
-  initial_usdc: 10000
 
 server:
   host: 0.0.0.0
   port: 8089
 
+docs:
+  enabled: true
+  route: /docs
+
+# Апстрим с реальными рыночными данными: книги и рынки проксируются туда как есть.
+poly_gate:
+  url: http://localhost:8080
+
+# Должен совпадать с `polymarket.api_key` робота: сервис подставляет это значение в поле
+# `owner` сделок, а робот оставляет только свои.
+polymarket:
+  api_key: ""
+
+paper:
+  initial_usdc: 10000
+  # Интервалы в секундах: тик матчинга и проход по разрешённым рынкам.
+  tick_interval: 1
+  manage_interval: 600
+  # Исполнять ордер сразу, если он пересекает книгу в момент постановки.
+  instant_taker_fill: true
