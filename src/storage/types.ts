@@ -2,11 +2,11 @@ import type { ObjectId } from "mongodb";
 
 import type { Millis, OrderStatus, Side } from "../types.js";
 
-export const COL_BALANCE = "_paper_balance";
-export const COL_ORDER = "_paper_order";
-export const COL_TRADE = "_paper_trade";
-export const COL_MARKET = "_paper_market";
-export const COL_TRADE_EVENT = "_paper_trade_event";
+export const COL_BALANCE = "balance";
+export const COL_ORDER = "order";
+export const COL_TRADE = "trade";
+export const COL_MARKET = "market";
+export const COL_TRADE_EVENT = "trade_event";
 
 export const WALLET_ID = "paper_wallet";
 
