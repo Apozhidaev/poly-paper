@@ -1,42 +1,39 @@
-/** One-shot-until-cleared event: `wait()` resolves while the signal is set. */
+/** Manual reset event: `wait()` blocks until `set()`, and stays open until `clear()`. */
 export class Signal {
-  private flag = false;
   private waiters: (() => void)[] = [];
+  private open = false;
 
   get isSet(): boolean {
-    return this.flag;
+    return this.open;
   }
 
   set(): void {
-    if (this.flag) return;
-    this.flag = true;
+    this.open = true;
     const waiters = this.waiters;
     this.waiters = [];
     for (const resolve of waiters) resolve();
   }
 
   clear(): void {
-    this.flag = false;
+    this.open = false;
   }
 
-  async wait(): Promise<void> {
-    if (this.flag) return;
-    await new Promise<void>((resolve) => {
+  wait(): Promise<void> {
+    if (this.open) return Promise.resolve();
+    return new Promise<void>((resolve) => {
       this.waiters.push(resolve);
     });
   }
 }
 
-/** Sleep for `ms`, cutting the wait short as soon as `wakeUp` is set. */
-export async function sleep(ms: number, wakeUp?: Signal): Promise<void> {
-  if (wakeUp === undefined) {
-    await new Promise<void>((resolve) => setTimeout(resolve, ms));
-    return;
+/** Sleep that returns early when `signal` fires, so shutdown does not wait out the delay. */
+export function sleep(ms: number, signal?: Signal): Promise<void> {
+  if (signal === undefined) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
   }
-  if (wakeUp.isSet) return;
-  await new Promise<void>((resolve) => {
+  return new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
-    void wakeUp.wait().then(() => {
+    void signal.wait().then(() => {
       clearTimeout(timer);
       resolve();
     });
