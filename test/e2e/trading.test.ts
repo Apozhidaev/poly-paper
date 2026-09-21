@@ -12,7 +12,7 @@ async function placeOrder(body: Record<string, unknown>) {
   const res = await env.app.inject({
     method: "POST",
     url: "/clob/order",
-    payload: { tickSize: "0.01", negRisk: false, orderType: "GTC", ...body },
+    payload: { orderType: "GTC", ...body },
   });
   return res.json() as { orderID?: string; success: boolean; errorMsg?: string };
 }

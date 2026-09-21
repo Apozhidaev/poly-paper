@@ -2,15 +2,11 @@ import { z } from "zod";
 
 export const sideSchema = z.enum(["BUY", "SELL"]);
 
-/** Payload the robot already sends: `tickSize`/`negRisk`/`orderType` are accepted for
- * compatibility but ignored — the live orderbook is the authority on tick and min size. */
 export const postOrderBody = z.object({
   tokenID: z.string().min(1),
   side: sideSchema,
   price: z.coerce.number(),
   size: z.coerce.number(),
-  tickSize: z.union([z.string(), z.number()]).optional(),
-  negRisk: z.boolean().optional(),
   orderType: z.string().optional(),
 });
 
