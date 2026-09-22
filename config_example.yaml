@@ -20,9 +20,10 @@ poly_gate:
   url: http://localhost:8080
 
 # Должен совпадать с `polymarket.api_key` робота: сервис подставляет это значение в поле
-# `owner` сделок, а робот оставляет только свои.
+# `owner` сделок, а робот оставляет только свои. `maker_address` — адрес кошелька в CLOB-пейлоадах.
 polymarket:
   api_key: ""
+  maker_address: ""
 
 paper:
   initial_usdc: 10000

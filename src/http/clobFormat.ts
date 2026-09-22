@@ -2,52 +2,66 @@ import type { z } from "zod";
 
 import { settings } from "../settings.js";
 import type { PaperOrderDocument, PaperTradeDocument } from "../storage/index.js";
-import { msToSec } from "../types.js";
+import type { Millis } from "../types.js";
 import type { clobOrderReply, clobTradeReply } from "./schema.js";
 
-/**
- * The CLOB quotes money and share amounts as decimal strings and timestamps in seconds. Both
- * conventions are reproduced here so a client written against the real gateway needs no
- * special casing — the robot's parsers already do `Number(...)` and `secToMs(...)`.
- */
+/** Decimal amounts stay strings so clients that `Number(...)` them keep working. */
 function amount(value: number): string {
   return String(value);
 }
 
+/** Gateway timestamps are ISO-8601; paper stores milliseconds. */
+function toIso(ms: Millis): string {
+  return new Date(ms).toISOString();
+}
+
 export function toClobOrder(order: PaperOrderDocument): z.infer<typeof clobOrderReply> {
+  const { apiKey, makerAddress } = settings().polymarket;
   return {
     id: order._id,
-    status: order.status,
-    market: order.condition_id,
-    asset_id: order.asset_id,
-    side: order.side,
+    outcome: order.outcome ?? "",
+    owner: apiKey,
     price: amount(order.price),
-    original_size: amount(order.original_size),
-    size_matched: amount(order.size_matched),
-    created_at: msToSec(order.created_at),
-    associate_trades: order.associate_trades,
-    type: "GTC",
-    owner: settings().polymarket.apiKey,
+    side: order.side,
+    status: order.status,
+    conditionId: order.condition_id,
+    assetId: order.asset_id,
+    tokenId: order.asset_id,
+    associateTrades: order.associate_trades,
+    createdAt: toIso(order.created_at),
+    makerAddress,
+    orderType: "GTC",
+    originalSize: amount(order.original_size),
+    sizeMatched: amount(order.size_matched),
   };
 }
 
 /**
- * Paper orders are always our own, so a trade is rendered in the taker shape with an empty
- * `maker_orders`. `owner` echoes the configured API key because the robot keeps only trades
- * whose owner matches its own `polymarket.api_key`.
+ * Paper fills are always our own. Instant book crosses are TAKER; resting fills from the
+ * public trade stream are MAKER. `makerOrders` stays empty — we do not model the counterparty.
  */
 export function toClobTrade(trade: PaperTradeDocument): z.infer<typeof clobTradeReply> {
+  const { apiKey, makerAddress } = settings().polymarket;
+  const matchedAt = toIso(trade.match_time);
   return {
     id: trade.trade_id,
-    taker_order_id: trade.order_id,
-    market: trade.condition_id,
-    asset_id: trade.asset_id,
-    side: trade.side,
+    outcome: trade.outcome ?? "",
+    owner: apiKey,
     price: amount(trade.avg_price),
+    side: trade.side,
     size: amount(trade.matched_amount),
-    status: "CONFIRMED",
-    match_time: msToSec(trade.match_time),
-    owner: settings().polymarket.apiKey,
-    maker_orders: [],
+    status: "TRADE_STATUS_CONFIRMED",
+    conditionId: trade.condition_id,
+    assetId: trade.asset_id,
+    tokenId: trade.asset_id,
+    bucketIndex: 0,
+    feeRateBps: "0",
+    updatedAt: matchedAt,
+    makerAddress,
+    makerOrders: [],
+    matchedAt,
+    takerOrderId: (trade.trader_side ?? "TAKER") === "TAKER" ? trade.order_id : "",
+    traderSide: trade.trader_side ?? "TAKER",
+    transactionHash: "",
   };
 }

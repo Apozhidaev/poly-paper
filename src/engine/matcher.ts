@@ -34,7 +34,12 @@ async function matchOrder(order: PaperOrderDocument): Promise<void> {
     return;
   }
 
-  await applyFill(order, { qty: fillQty, price: order.price, cursorEvent: cursor });
+  await applyFill(order, {
+    qty: fillQty,
+    price: order.price,
+    cursorEvent: cursor,
+    traderSide: "MAKER",
+  });
 }
 
 export async function matchOnce(): Promise<void> {

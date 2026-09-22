@@ -9,8 +9,8 @@ export interface Settings {
     manageIntervalMs: number;
     instantTakerFill: boolean;
   };
-  /** Echoed as `owner` on trades: the robot matches it against its own `polymarket.api_key`. */
-  polymarket: { apiKey: string };
+  /** Echoed as `owner` / `makerAddress` on CLOB payloads so the robot can match its own fills. */
+  polymarket: { apiKey: string; makerAddress: string };
 }
 
 let cached: Settings | null = null;
@@ -33,6 +33,7 @@ export function settings(): Settings {
     },
     polymarket: {
       apiKey: getOr("polymarket.api_key", ""),
+      makerAddress: getOr("polymarket.maker_address", ""),
     },
   };
   return cached;

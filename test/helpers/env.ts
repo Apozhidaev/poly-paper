@@ -56,7 +56,7 @@ export async function startTestEnv(options: TestEnvOptions = {}): Promise<TestEn
       server: { host: "127.0.0.1", port: 0 },
       docs: { enabled: options.docs ?? false, route: "/docs" },
       poly_gate: { url: gateway.url },
-      polymarket: { api_key: "test-api-key" },
+      polymarket: { api_key: "test-api-key", maker_address: "0xtest" },
       paper: {
         initial_usdc: initialUsdc,
         tick_interval: 3600,

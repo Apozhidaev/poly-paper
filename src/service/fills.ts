@@ -13,6 +13,8 @@ export interface Fill {
   price: number;
   /** Trade event the fill was derived from; advances the order's matcher cursor. */
   cursorEvent?: ObjectId | null;
+  /** Instant book crosses are TAKER; resting fills from public trades are MAKER. */
+  traderSide?: "TAKER" | "MAKER";
 }
 
 export interface FillResult {
@@ -55,6 +57,8 @@ export async function applyFill(order: PaperOrderDocument, fill: Fill): Promise<
     matched_amount: fill.qty,
     side: order.side,
     match_time: nowMs(),
+    trader_side: fill.traderSide ?? "TAKER",
+    outcome: order.outcome,
   });
 
   if (order.side === "BUY") {

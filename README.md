@@ -35,7 +35,8 @@ pnpm test        # vitest: домен + e2e на in-memory Mongo и поддел
 | POST | `/clob/order` |
 | DELETE | `/clob/order` |
 | GET | `/clob/order/:orderID` |
-| GET | `/clob/user-trades?id=` |
+| GET | `/clob/open-orders` |
+| GET | `/clob/user-trades` |
 | GET | `/clob/usdc-balance` |
 | GET | `/clob/token-balance?token_id=` |
 
@@ -48,7 +49,7 @@ pnpm test        # vitest: домен + e2e на in-memory Mongo и поддел
 `GET /paper/markets`.
 
 Ответы `/clob/*` намеренно повторяют соглашения CLOB: суммы и цены — десятичные строки,
-`created_at` и `match_time` — секунды. Ответы `/paper/*` — обычные числа и миллисекунды.
+`createdAt` / `matchedAt` — ISO-8601. Ответы `/paper/*` — обычные числа и миллисекунды.
 
 Отказ в постановке ордера (не хватило средств, цена не по тику, рынок разрешён) — это
 `200` с `{"ok": false, "errorMsg": "..."}`, как и у CLOB. Ошибка валидации самого
@@ -83,8 +84,8 @@ tradeIds, transactionsHashes }` (amounts — строки, `status` в нижн�
 
 1. В конфиге робота указать `poly_gate.url: http://localhost:8089` — этого достаточно,
    чтобы и торговля, и рыночные данные шли через сервис.
-2. `polymarket.api_key` должен совпадать у робота и у сервиса: сервис подставляет это
-   значение в поле `owner` сделок, а робот оставляет только свои.
+2. `polymarket.api_key` и при необходимости `polymarket.maker_address` должны совпадать у
+   робота и у сервиса: сервис подставляет их в `owner` / `makerAddress` ордеров и сделок.
 3. `poly_gate.token` у робота должен быть непустым (его клиент падает на пустом), но сервис
    токен не проверяет.
 4. `poly_gate.url` в конфиге **сервиса** — это адрес настоящего шлюза, куда проксируются

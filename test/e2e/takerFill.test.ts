@@ -58,9 +58,9 @@ describe("instant taker fill", () => {
       await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
     // 5 shares at 0.55 and 10 at 0.60; the 0.70 level is above the limit.
-    expect(order["size_matched"]).toBe("15");
+    expect(order["sizeMatched"]).toBe("15");
     expect(order["status"]).toBe("LIVE");
-    expect(order["associate_trades"]).toHaveLength(2);
+    expect(order["associateTrades"]).toHaveLength(2);
 
     const trades = (
       await env.app.inject({ method: "GET", url: `/paper/orders/${placed.orderId}/trades` })
@@ -90,7 +90,7 @@ describe("instant taker fill", () => {
     const order = (
       await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
-    expect(order["size_matched"]).toBe("8");
+    expect(order["sizeMatched"]).toBe("8");
 
     const wallet = await env.storage.wallet.getWallet();
     expect(wallet?.usdc_available).toBeCloseTo(1003.2, 6);
@@ -109,8 +109,8 @@ describe("instant taker fill", () => {
     const order = (
       await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
-    expect(order["size_matched"]).toBe("0");
-    expect(order["associate_trades"]).toEqual([]);
+    expect(order["sizeMatched"]).toBe("0");
+    expect(order["associateTrades"]).toEqual([]);
   });
 
   it("marks an order MATCHED when the book swallows it whole", async () => {
@@ -127,6 +127,6 @@ describe("instant taker fill", () => {
       await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
     expect(order["status"]).toBe("MATCHED");
-    expect(order["size_matched"]).toBe("10");
+    expect(order["sizeMatched"]).toBe("10");
   });
 });

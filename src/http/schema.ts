@@ -35,37 +35,76 @@ export const orderIdParams = z.object({
   orderID: z.string().min(1),
 });
 
+/** Gateway order shape: camelCase fields, ISO-8601 timestamps. */
 export const clobOrderReply = z.object({
   id: z.string(),
-  status: z.string(),
-  market: z.string(),
-  asset_id: z.string(),
-  side: sideSchema,
-  price: z.string(),
-  original_size: z.string(),
-  size_matched: z.string(),
-  created_at: z.number(),
-  associate_trades: z.array(z.string()),
-  type: z.string(),
+  outcome: z.string(),
   owner: z.string(),
+  price: z.string(),
+  side: sideSchema,
+  status: z.string(),
+  conditionId: z.string(),
+  assetId: z.string(),
+  tokenId: z.string(),
+  associateTrades: z.array(z.string()),
+  createdAt: z.string(),
+  makerAddress: z.string(),
+  orderType: z.string(),
+  originalSize: z.string(),
+  sizeMatched: z.string(),
+  expiresAt: z.string().optional(),
+});
+
+export const clobMakerOrderReply = z.object({
+  outcome: z.string(),
+  owner: z.string(),
+  price: z.string(),
+  side: sideSchema,
+  assetId: z.string(),
+  tokenId: z.string(),
+  feeRateBps: z.string().nullable(),
+  makerAddress: z.string(),
+  matchedAmount: z.string(),
+  orderId: z.string(),
 });
 
 export const clobTradeReply = z.object({
   id: z.string(),
-  taker_order_id: z.string(),
-  market: z.string(),
-  asset_id: z.string(),
-  side: sideSchema,
+  outcome: z.string(),
+  owner: z.string(),
   price: z.string(),
+  side: sideSchema,
   size: z.string(),
   status: z.string(),
-  match_time: z.number(),
-  owner: z.string(),
-  maker_orders: z.array(z.unknown()),
+  conditionId: z.string(),
+  assetId: z.string(),
+  tokenId: z.string(),
+  bucketIndex: z.number(),
+  feeRateBps: z.string(),
+  updatedAt: z.string(),
+  makerAddress: z.string(),
+  makerOrders: z.array(clobMakerOrderReply),
+  matchedAt: z.string(),
+  takerOrderId: z.string(),
+  traderSide: z.enum(["TAKER", "MAKER"]),
+  transactionHash: z.string(),
 });
 
 export const userTradesQuery = z.object({
-  id: z.string().min(1),
+  id: z.string().optional(),
+  maker_address: z.string().optional(),
+  market: z.string().optional(),
+  asset_id: z.string().optional(),
+  before: z.string().optional(),
+  after: z.string().optional(),
+  next_cursor: z.string().optional(),
+});
+
+export const userTradesReply = z.object({
+  items: z.array(clobTradeReply),
+  has_more: z.boolean(),
+  next_cursor: z.string().optional(),
+  total_count: z.number().optional(),
 });
 
 export const tokenBalanceQuery = z.object({

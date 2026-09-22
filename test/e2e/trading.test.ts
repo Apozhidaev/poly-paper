@@ -107,18 +107,28 @@ describe("placing orders", () => {
     expect(body).toMatchObject({
       id: placed.orderId,
       status: "LIVE",
-      market: CONDITION,
-      asset_id: TOKEN,
+      outcome: "Yes",
+      conditionId: CONDITION,
+      assetId: TOKEN,
+      tokenId: TOKEN,
       side: "BUY",
       price: "0.5",
-      original_size: "10",
-      size_matched: "0",
-      type: "GTC",
+      originalSize: "10",
+      sizeMatched: "0",
+      orderType: "GTC",
       owner: "test-api-key",
-      associate_trades: [],
+      makerAddress: "0xtest",
+      associateTrades: [],
     });
-    // The CLOB reports creation time in seconds, not milliseconds.
-    expect(body["created_at"]).toBeCloseTo(Math.floor(Date.now() / 1000), -1);
+    expect(body["createdAt"]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("lists open orders", async () => {
+    const first = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
+    const second = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.4, size: 10 });
+    const res = await env.app.inject({ method: "GET", url: "/clob/open-orders" });
+    const ids = (res.json() as { id: string }[]).map((o) => o.id).sort();
+    expect(ids).toEqual([first.orderId, second.orderId].sort());
   });
 
   it("registers the market on first contact", async () => {
@@ -188,19 +198,19 @@ describe("matching against public trades", () => {
     // Trades at or above the limit never fill a resting BUY.
     await recordTrade(TOKEN, "SELL", 0.5, 100);
     await env.matchOnce();
-    expect((await getOrder(orderId)).body["size_matched"]).toBe("0");
+    expect((await getOrder(orderId)).body["sizeMatched"]).toBe("0");
 
     await recordTrade(TOKEN, "SELL", 0.49, 4);
     await env.matchOnce();
     let order = (await getOrder(orderId)).body;
-    expect(order["size_matched"]).toBe("4");
+    expect(order["sizeMatched"]).toBe("4");
     expect(order["status"]).toBe("LIVE");
     expect(await tokenBalance(TOKEN)).toBe(4);
 
     await recordTrade(TOKEN, "SELL", 0.45, 25);
     await env.matchOnce();
     order = (await getOrder(orderId)).body;
-    expect(order["size_matched"]).toBe("10");
+    expect(order["sizeMatched"]).toBe("10");
     expect(order["status"]).toBe("MATCHED");
     expect(await tokenBalance(TOKEN)).toBe(10);
 
@@ -208,7 +218,7 @@ describe("matching against public trades", () => {
     expect(await usdcBalance()).toBe(995);
     const wallet = await env.storage.wallet.getWallet();
     expect(wallet?.usdc_reserved).toBeCloseTo(0, 9);
-    expect(order["associate_trades"]).toHaveLength(2);
+    expect(order["associateTrades"]).toHaveLength(2);
   });
 
   it("does not re-consume trades once an order has looked at them", async () => {
@@ -216,14 +226,14 @@ describe("matching against public trades", () => {
     await recordTrade(TOKEN, "SELL", 0.49, 4);
     await env.matchOnce();
     await env.matchOnce();
-    expect((await getOrder(placed.orderId!)).body["size_matched"]).toBe("4");
+    expect((await getOrder(placed.orderId!)).body["sizeMatched"]).toBe("4");
   });
 
   it("ignores trades that arrived before the order existed", async () => {
     await recordTrade(TOKEN, "SELL", 0.4, 100);
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
     await env.matchOnce();
-    expect((await getOrder(placed.orderId!)).body["size_matched"]).toBe("0");
+    expect((await getOrder(placed.orderId!)).body["sizeMatched"]).toBe("0");
   });
 
   it("credits USDC when a resting SELL is filled", async () => {
@@ -239,33 +249,44 @@ describe("matching against public trades", () => {
     expect(await tokenBalance(TOKEN)).toBe(10);
   });
 
-  it("exposes fills through /clob/user-trades in the taker shape", async () => {
+  it("exposes fills through /clob/user-trades as a paged TAKER/MAKER payload", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
     await recordTrade(TOKEN, "SELL", 0.49, 10);
     await env.matchOnce();
 
-    const [tradeId] = (await getOrder(placed.orderId!)).body["associate_trades"] as string[];
+    const [tradeId] = (await getOrder(placed.orderId!)).body["associateTrades"] as string[];
     const res = await env.app.inject({ method: "GET", url: `/clob/user-trades?id=${tradeId}` });
-    expect(res.json()).toEqual([
-      {
-        id: tradeId,
-        taker_order_id: placed.orderId,
-        market: CONDITION,
-        asset_id: TOKEN,
-        side: "BUY",
-        price: "0.5",
-        size: "10",
-        status: "CONFIRMED",
-        match_time: expect.any(Number),
-        owner: "test-api-key",
-        maker_orders: [],
-      },
-    ]);
+    expect(res.json()).toEqual({
+      items: [
+        {
+          id: tradeId,
+          outcome: "Yes",
+          owner: "test-api-key",
+          price: "0.5",
+          side: "BUY",
+          size: "10",
+          status: "TRADE_STATUS_CONFIRMED",
+          conditionId: CONDITION,
+          assetId: TOKEN,
+          tokenId: TOKEN,
+          bucketIndex: 0,
+          feeRateBps: "0",
+          updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          makerAddress: "0xtest",
+          makerOrders: [],
+          matchedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          takerOrderId: "",
+          traderSide: "MAKER",
+          transactionHash: "",
+        },
+      ],
+      has_more: false,
+    });
   });
 
-  it("returns an empty list for an unknown trade id", async () => {
+  it("returns an empty page for an unknown trade id", async () => {
     const res = await env.app.inject({ method: "GET", url: "/clob/user-trades?id=nope" });
-    expect(res.json()).toEqual([]);
+    expect(res.json()).toEqual({ items: [], has_more: false });
   });
 });
 

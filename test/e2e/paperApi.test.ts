@@ -184,6 +184,7 @@ describe("swagger", () => {
       expect.arrayContaining([
         "/clob/order",
         "/clob/order/{orderID}",
+        "/clob/open-orders",
         "/clob/user-trades",
         "/clob/usdc-balance",
         "/clob/token-balance",

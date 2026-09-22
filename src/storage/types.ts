@@ -32,6 +32,8 @@ export interface PaperOrderDocument {
   created_at: Millis;
   associate_trades: string[];
   condition_id: string;
+  /** Outcome label from the CLOB market (e.g. "Yes"); echoed in gateway order payloads. */
+  outcome: string;
   /**
    * Newest trade event already accounted for by the matcher. Each order carries its own
    * cursor, so two orders on the same asset can both match against the same event stream.
@@ -57,6 +59,10 @@ export interface PaperTradeDocument {
   matched_amount: number;
   side: Side;
   match_time: Millis;
+  /** Instant book crosses are TAKER; resting fills from public trades are MAKER. */
+  trader_side: "TAKER" | "MAKER";
+  /** Outcome label copied from the order at fill time. */
+  outcome: string;
 }
 
 export interface PaperTradeEventDocument {

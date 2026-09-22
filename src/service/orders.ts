@@ -53,6 +53,11 @@ async function ensureMarket(conditionId: string): Promise<string | null> {
   return null;
 }
 
+async function outcomeFor(conditionId: string, tokenId: string): Promise<string> {
+  const market = await getMarketByConditionId(conditionId);
+  return market?.tokens.find((token) => token.tokenId === tokenId)?.outcome ?? "";
+}
+
 async function reserveFor(request: PlaceOrderRequest): Promise<boolean> {
   if (request.side === "BUY") {
     return wallet.tryReserveUsdc(notional(request.price, request.size));
@@ -97,6 +102,7 @@ export async function placeOrder(request: PlaceOrderRequest): Promise<PlaceOrder
     created_at: nowMs(),
     associate_trades: [],
     condition_id: orderbook.conditionId,
+    outcome: await outcomeFor(orderbook.conditionId, request.tokenId),
     // Only trades observed from now on can fill this order.
     cursor_event: await tradeEvents.latestEventId(),
   };
@@ -120,7 +126,7 @@ export async function placeOrder(request: PlaceOrderRequest): Promise<PlaceOrder
       size: order.original_size,
       orderbook,
     })) {
-      const result = await applyFill(current, fill);
+      const result = await applyFill(current, { ...fill, traderSide: "TAKER" });
       if (!result.applied) break;
       current = { ...current, size_matched: result.sizeMatched };
       if (result.tradeId !== undefined) tradeIds.push(result.tradeId);
@@ -172,6 +178,41 @@ export async function getOrder(orderId: string): Promise<PaperOrderDocument | nu
   return orders.getOrder(orderId);
 }
 
-export async function getTrade(tradeId: string): Promise<PaperTradeDocument | null> {
-  return trades.findTradeById(tradeId);
+export async function listOpenOrders(): Promise<PaperOrderDocument[]> {
+  return orders.findLiveOrders();
+}
+
+export interface ListTradesQuery {
+  id?: string;
+  makerAddress?: string;
+  market?: string;
+  assetId?: string;
+  before?: string;
+  after?: string;
+}
+
+/**
+ * Parse a CLOB time filter: unix seconds (digits) or an ISO-8601 string. Invalid values are
+ * ignored so a bad query param does not become a 500.
+ */
+function parseTimeBound(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (/^\d+$/.test(value)) return Number(value) * 1000;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+export async function listTrades(query: ListTradesQuery): Promise<PaperTradeDocument[]> {
+  const maker = settings().polymarket.makerAddress;
+  // Every paper trade belongs to this wallet; a foreign maker_address means an empty page.
+  if (query.makerAddress !== undefined && query.makerAddress !== "" && query.makerAddress !== maker) {
+    return [];
+  }
+  return trades.findTrades({
+    tradeId: query.id,
+    conditionId: query.market,
+    assetId: query.assetId,
+    afterMs: parseTimeBound(query.after),
+    beforeMs: parseTimeBound(query.before),
+  });
 }

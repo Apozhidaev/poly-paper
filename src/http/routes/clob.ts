@@ -9,13 +9,13 @@ import {
   cancelOrderBody,
   cancelOrderReply,
   clobOrderReply,
-  clobTradeReply,
   errorReply,
   orderIdParams,
   postOrderBody,
   postOrderReply,
   tokenBalanceQuery,
   userTradesQuery,
+  userTradesReply,
 } from "../schema.js";
 
 /** Emulated trading side of the CLOB, shaped exactly like the upstream gateway. */
@@ -77,7 +77,7 @@ export const clobRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: {
         tags: ["clob"],
-        summary: "Order state by id",
+        summary: "Get single order by id",
         params: orderIdParams,
         response: { 200: clobOrderReply, 404: errorReply },
       },
@@ -90,18 +90,41 @@ export const clobRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   app.get(
+    "/clob/open-orders",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Get open orders",
+        description: "Returns the wallet's open orders.",
+        response: { 200: clobOrderReply.array() },
+      },
+    },
+    async () => (await orderService.listOpenOrders()).map(toClobOrder),
+  );
+
+  app.get(
     "/clob/user-trades",
     {
       schema: {
         tags: ["clob"],
-        summary: "Trades by trade id",
+        summary: "Get trades (authenticated user)",
         querystring: userTradesQuery,
-        response: { 200: clobTradeReply.array() },
+        response: { 200: userTradesReply },
       },
     },
     async (request) => {
-      const trade = await orderService.getTrade(request.query.id);
-      return trade === null ? [] : [toClobTrade(trade)];
+      const {
+        id,
+        maker_address: makerAddress,
+        market,
+        asset_id: assetId,
+        before,
+        after,
+      } = request.query;
+      const items = (
+        await orderService.listTrades({ id, makerAddress, market, assetId, before, after })
+      ).map(toClobTrade);
+      return { items, has_more: false };
     },
   );
 
