@@ -29,7 +29,14 @@ export interface PlaceOrderRequest {
 }
 
 export type PlaceOrderResult =
-  | { success: true; orderId: string }
+  | {
+      success: true;
+      orderId: string;
+      status: OrderStatus;
+      makingAmount: number;
+      takingAmount: number;
+      tradeIds: string[];
+    }
   | { success: false; errorMsg: string };
 
 /** Registers the market on first contact so the resolver knows what to watch and redeem. */
@@ -101,6 +108,10 @@ export async function placeOrder(request: PlaceOrderRequest): Promise<PlaceOrder
     size: order.original_size,
   });
 
+  let makingAmount = 0;
+  let takingAmount = 0;
+  const tradeIds: string[] = [];
+
   if (settings().paper.instantTakerFill) {
     let current = order;
     for (const fill of matchTaker({
@@ -112,11 +123,28 @@ export async function placeOrder(request: PlaceOrderRequest): Promise<PlaceOrder
       const result = await applyFill(current, fill);
       if (!result.applied) break;
       current = { ...current, size_matched: result.sizeMatched };
+      if (result.tradeId !== undefined) tradeIds.push(result.tradeId);
+      const usdc = notional(fill.price, fill.qty);
+      if (order.side === "BUY") {
+        makingAmount += usdc;
+        takingAmount += fill.qty;
+      } else {
+        makingAmount += fill.qty;
+        takingAmount += usdc;
+      }
       if (current.size_matched >= current.original_size - EPS) break;
     }
   }
 
-  return { success: true, orderId: order._id };
+  const placed = (await orders.getOrder(order._id)) ?? order;
+  return {
+    success: true,
+    orderId: placed._id,
+    status: placed.status,
+    makingAmount,
+    takingAmount,
+    tradeIds,
+  };
 }
 
 export async function cancelOrder(

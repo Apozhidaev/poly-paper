@@ -51,8 +51,9 @@ pnpm test        # vitest: домен + e2e на in-memory Mongo и поддел
 `created_at` и `match_time` — секунды. Ответы `/paper/*` — обычные числа и миллисекунды.
 
 Отказ в постановке ордера (не хватило средств, цена не по тику, рынок разрешён) — это
-`200` с `{"success": false, "errorMsg": "..."}`, как и у CLOB. Ошибка валидации самого
-запроса — `400`.
+`200` с `{"ok": false, "errorMsg": "..."}`, как и у CLOB. Ошибка валидации самого
+запроса — `400`. Успешный ответ: `{ ok, orderId, status, makingAmount, takingAmount,
+tradeIds, transactionsHashes }` (amounts — строки, `status` в нижнем регистре).
 
 ## Как эмулируется исполнение
 

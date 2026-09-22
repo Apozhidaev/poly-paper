@@ -36,9 +36,17 @@ export const clobRoutes: FastifyPluginAsync = async (fastify) => {
       const { tokenID, side, price, size } = request.body;
       const result = await orderService.placeOrder({ tokenId: tokenID, side, price, size });
       // A rejected order is a normal outcome, not a transport failure: the CLOB answers 200
-      // with success=false and so must we, or the robot sees an exception instead.
-      if (!result.success) return { success: false, errorMsg: result.errorMsg };
-      return { orderID: result.orderId, success: true };
+      // with ok=false and so must we, or the robot sees an exception instead.
+      if (!result.success) return { ok: false, errorMsg: result.errorMsg };
+      return {
+        ok: true,
+        orderId: result.orderId,
+        status: result.status.toLowerCase(),
+        makingAmount: String(result.makingAmount),
+        takingAmount: String(result.takingAmount),
+        tradeIds: result.tradeIds,
+        transactionsHashes: [],
+      };
     },
   );
 

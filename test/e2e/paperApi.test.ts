@@ -123,7 +123,7 @@ describe("order listing", () => {
       url: "/clob/order",
       payload: { tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 },
     });
-    const orderId = (first.json() as { orderID: string }).orderID;
+    const orderId = (first.json() as { orderId: string }).orderId;
     await env.app.inject({
       method: "POST",
       url: "/clob/order",

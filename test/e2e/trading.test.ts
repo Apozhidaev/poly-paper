@@ -14,7 +14,16 @@ async function placeOrder(body: Record<string, unknown>) {
     url: "/clob/order",
     payload: { orderType: "GTC", ...body },
   });
-  return res.json() as { orderID?: string; success: boolean; errorMsg?: string };
+  return res.json() as {
+    ok: boolean;
+    orderId?: string;
+    status?: string;
+    makingAmount?: string;
+    takingAmount?: string;
+    tradeIds?: string[];
+    transactionsHashes?: string[];
+    errorMsg?: string;
+  };
 }
 
 async function usdcBalance(): Promise<number> {
@@ -81,15 +90,22 @@ beforeEach(async () => {
 describe("placing orders", () => {
   it("reserves USDC for a resting BUY and reports it in the CLOB shape", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
-    expect(placed.success).toBe(true);
-    expect(placed.orderID).toBeTypeOf("string");
+    expect(placed).toMatchObject({
+      ok: true,
+      status: "live",
+      makingAmount: "0",
+      takingAmount: "0",
+      tradeIds: [],
+      transactionsHashes: [],
+    });
+    expect(placed.orderId).toBeTypeOf("string");
 
     expect(await usdcBalance()).toBe(995);
 
-    const { status, body } = await getOrder(placed.orderID!);
+    const { status, body } = await getOrder(placed.orderId!);
     expect(status).toBe(200);
     expect(body).toMatchObject({
-      id: placed.orderID,
+      id: placed.orderId,
       status: "LIVE",
       market: CONDITION,
       asset_id: TOKEN,
@@ -123,25 +139,25 @@ describe("placing orders", () => {
   it("reserves shares for a SELL and hides them from the free balance", async () => {
     await env.storage.wallet.creditTokens(TOKEN, 20);
     const placed = await placeOrder({ tokenID: TOKEN, side: "SELL", price: 0.7, size: 10 });
-    expect(placed.success).toBe(true);
+    expect(placed.ok).toBe(true);
     expect(await tokenBalance(TOKEN)).toBe(10);
   });
 
-  it("rejects an order it cannot fund with success=false, not an error status", async () => {
+  it("rejects an order it cannot fund with ok=false, not an error status", async () => {
     const res = await env.app.inject({
       method: "POST",
       url: "/clob/order",
       payload: { tokenID: TOKEN, side: "BUY", price: 0.99, size: 5000 },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ success: false });
+    expect(res.json()).toMatchObject({ ok: false });
     expect((res.json() as { errorMsg: string }).errorMsg).toMatch(/not enough USDC/);
     expect(await usdcBalance()).toBe(1000);
   });
 
   it("rejects a SELL with no shares", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "SELL", price: 0.7, size: 10 });
-    expect(placed.success).toBe(false);
+    expect(placed.ok).toBe(false);
     expect(placed.errorMsg).toMatch(/not enough shares/);
   });
 
@@ -167,7 +183,7 @@ describe("placing orders", () => {
 describe("matching against public trades", () => {
   it("fills a resting BUY in parts as volume trades through it", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
-    const orderId = placed.orderID!;
+    const orderId = placed.orderId!;
 
     // Trades at or above the limit never fill a resting BUY.
     await recordTrade(TOKEN, "SELL", 0.5, 100);
@@ -200,14 +216,14 @@ describe("matching against public trades", () => {
     await recordTrade(TOKEN, "SELL", 0.49, 4);
     await env.matchOnce();
     await env.matchOnce();
-    expect((await getOrder(placed.orderID!)).body["size_matched"]).toBe("4");
+    expect((await getOrder(placed.orderId!)).body["size_matched"]).toBe("4");
   });
 
   it("ignores trades that arrived before the order existed", async () => {
     await recordTrade(TOKEN, "SELL", 0.4, 100);
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
     await env.matchOnce();
-    expect((await getOrder(placed.orderID!)).body["size_matched"]).toBe("0");
+    expect((await getOrder(placed.orderId!)).body["size_matched"]).toBe("0");
   });
 
   it("credits USDC when a resting SELL is filled", async () => {
@@ -217,7 +233,7 @@ describe("matching against public trades", () => {
     await recordTrade(TOKEN, "BUY", 0.61, 10);
     await env.matchOnce();
 
-    const order = (await getOrder(placed.orderID!)).body;
+    const order = (await getOrder(placed.orderId!)).body;
     expect(order["status"]).toBe("MATCHED");
     expect(await usdcBalance()).toBe(1006);
     expect(await tokenBalance(TOKEN)).toBe(10);
@@ -228,12 +244,12 @@ describe("matching against public trades", () => {
     await recordTrade(TOKEN, "SELL", 0.49, 10);
     await env.matchOnce();
 
-    const [tradeId] = (await getOrder(placed.orderID!)).body["associate_trades"] as string[];
+    const [tradeId] = (await getOrder(placed.orderId!)).body["associate_trades"] as string[];
     const res = await env.app.inject({ method: "GET", url: `/clob/user-trades?id=${tradeId}` });
     expect(res.json()).toEqual([
       {
         id: tradeId,
-        taker_order_id: placed.orderID,
+        taker_order_id: placed.orderId,
         market: CONDITION,
         asset_id: TOKEN,
         side: "BUY",
@@ -256,7 +272,7 @@ describe("matching against public trades", () => {
 describe("cancelling", () => {
   it("releases the reserve and refuses to cancel twice", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.4, size: 10 });
-    const orderId = placed.orderID!;
+    const orderId = placed.orderId!;
     expect(await usdcBalance()).toBe(996);
 
     const first = await env.app.inject({
@@ -283,7 +299,7 @@ describe("cancelling", () => {
     await env.app.inject({
       method: "DELETE",
       url: "/clob/order",
-      payload: { orderID: placed.orderID },
+      payload: { orderID: placed.orderId },
     });
 
     // Paid 2 USDC for 4 shares, the other 3 USDC came back out of the reserve.
@@ -299,7 +315,7 @@ describe("cancelling", () => {
     await env.app.inject({
       method: "DELETE",
       url: "/clob/order",
-      payload: { orderID: placed.orderID },
+      payload: { orderID: placed.orderId },
     });
     expect(await tokenBalance(TOKEN)).toBe(20);
   });
@@ -363,7 +379,7 @@ describe("market resolution", () => {
     await env.resolveOnce();
 
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.4, size: 10 });
-    expect(placed.success).toBe(false);
+    expect(placed.ok).toBe(false);
     expect(placed.errorMsg).toMatch(/resolved/);
   });
 });

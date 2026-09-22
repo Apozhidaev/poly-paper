@@ -9,7 +9,15 @@ let env: TestEnv;
 
 async function placeOrder(body: Record<string, unknown>) {
   const res = await env.app.inject({ method: "POST", url: "/clob/order", payload: body });
-  return res.json() as { orderID?: string; success: boolean; errorMsg?: string };
+  return res.json() as {
+    ok: boolean;
+    orderId?: string;
+    status?: string;
+    makingAmount?: string;
+    takingAmount?: string;
+    tradeIds?: string[];
+    errorMsg?: string;
+  };
 }
 
 beforeAll(async () => {
@@ -37,10 +45,17 @@ beforeEach(async () => {
 describe("instant taker fill", () => {
   it("walks the book on placement and rests the remainder", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.6, size: 20 });
-    expect(placed.success).toBe(true);
+    expect(placed).toMatchObject({
+      ok: true,
+      status: "live",
+      // 5 @ 0.55 + 10 @ 0.60
+      makingAmount: "8.75",
+      takingAmount: "15",
+    });
+    expect(placed.tradeIds).toHaveLength(2);
 
     const order = (
-      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderID}` })
+      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
     // 5 shares at 0.55 and 10 at 0.60; the 0.70 level is above the limit.
     expect(order["size_matched"]).toBe("15");
@@ -48,7 +63,7 @@ describe("instant taker fill", () => {
     expect(order["associate_trades"]).toHaveLength(2);
 
     const trades = (
-      await env.app.inject({ method: "GET", url: `/paper/orders/${placed.orderID}/trades` })
+      await env.app.inject({ method: "GET", url: `/paper/orders/${placed.orderId}/trades` })
     ).json() as { price: number; size: number }[];
     expect(trades).toMatchObject([
       { price: 0.55, size: 5 },
@@ -65,9 +80,15 @@ describe("instant taker fill", () => {
   it("sells into the bids at the bid price", async () => {
     await env.storage.wallet.creditTokens(TOKEN, 20);
     const placed = await placeOrder({ tokenID: TOKEN, side: "SELL", price: 0.4, size: 20 });
+    expect(placed).toMatchObject({
+      ok: true,
+      status: "live",
+      makingAmount: "8",
+      takingAmount: "3.2",
+    });
 
     const order = (
-      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderID}` })
+      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
     expect(order["size_matched"]).toBe("8");
 
@@ -78,8 +99,15 @@ describe("instant taker fill", () => {
 
   it("leaves a non-crossing order untouched", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
+    expect(placed).toMatchObject({
+      ok: true,
+      status: "live",
+      makingAmount: "0",
+      takingAmount: "0",
+      tradeIds: [],
+    });
     const order = (
-      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderID}` })
+      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
     expect(order["size_matched"]).toBe("0");
     expect(order["associate_trades"]).toEqual([]);
@@ -87,8 +115,16 @@ describe("instant taker fill", () => {
 
   it("marks an order MATCHED when the book swallows it whole", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.6, size: 10 });
+    expect(placed).toMatchObject({
+      ok: true,
+      status: "matched",
+      makingAmount: "5.75",
+      takingAmount: "10",
+    });
+    expect(placed.tradeIds).toHaveLength(2);
+
     const order = (
-      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderID}` })
+      await env.app.inject({ method: "GET", url: `/clob/order/${placed.orderId}` })
     ).json() as Record<string, unknown>;
     expect(order["status"]).toBe("MATCHED");
     expect(order["size_matched"]).toBe("10");

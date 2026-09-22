@@ -11,8 +11,13 @@ export const postOrderBody = z.object({
 });
 
 export const postOrderReply = z.object({
-  orderID: z.string().optional(),
-  success: z.boolean(),
+  ok: z.boolean(),
+  orderId: z.string().optional(),
+  status: z.string().optional(),
+  makingAmount: z.string().optional(),
+  takingAmount: z.string().optional(),
+  tradeIds: z.array(z.string()).optional(),
+  transactionsHashes: z.array(z.string()).optional(),
   errorMsg: z.string().optional(),
 });
 
