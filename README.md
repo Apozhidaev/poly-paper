@@ -48,8 +48,10 @@ pnpm test        # vitest: домен + e2e на in-memory Mongo и поддел
 `GET /paper/orders`, `GET /paper/orders/:orderID/trades`, `POST /paper/orders/cancel-all`,
 `GET /paper/markets`.
 
-Ответы `/clob/*` намеренно повторяют соглашения CLOB: суммы и цены — десятичные строки,
-`createdAt` / `matchedAt` — ISO-8601. Ответы `/paper/*` — обычные числа и миллисекунды.
+Ответы `/clob/order*` повторяют соглашения CLOB: суммы и цены — десятичные строки,
+`createdAt` — ISO-8601. `/clob/user-trades` отдаёт уже смапленные UserTrade-строки как
+poly-gate (`avgPrice`/`matchedAmount` числами, `matchTime` — epoch ms). Ответы `/paper/*` —
+обычные числа и миллисекунды.
 
 Отказ в постановке ордера (не хватило средств, цена не по тику, рынок разрешён) — это
 `200` с `{"ok": false, "errorMsg": "..."}`, как и у CLOB. Ошибка валидации самого

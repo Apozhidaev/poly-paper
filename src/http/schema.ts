@@ -55,39 +55,16 @@ export const clobOrderReply = z.object({
   expiresAt: z.string().optional(),
 });
 
-export const clobMakerOrderReply = z.object({
-  outcome: z.string(),
-  owner: z.string(),
-  price: z.string(),
-  side: sideSchema,
-  assetId: z.string(),
-  tokenId: z.string(),
-  feeRateBps: z.string().nullable(),
-  makerAddress: z.string(),
-  matchedAmount: z.string(),
-  orderId: z.string(),
-});
-
+/** Mapped UserTrade row from poly-gate (not the raw CLOB trade payload). */
 export const clobTradeReply = z.object({
-  id: z.string(),
-  outcome: z.string(),
-  owner: z.string(),
-  price: z.string(),
-  side: sideSchema,
-  size: z.string(),
-  status: z.string(),
+  tradeId: z.string(),
+  orderId: z.string(),
   conditionId: z.string(),
   assetId: z.string(),
-  tokenId: z.string(),
-  bucketIndex: z.number(),
-  feeRateBps: z.string(),
-  updatedAt: z.string(),
-  makerAddress: z.string(),
-  makerOrders: z.array(clobMakerOrderReply),
-  matchedAt: z.string(),
-  takerOrderId: z.string(),
-  traderSide: z.enum(["TAKER", "MAKER"]),
-  transactionHash: z.string(),
+  avgPrice: z.number(),
+  matchedAmount: z.number(),
+  side: sideSchema,
+  matchTime: z.number(),
 });
 
 export const userTradesQuery = z.object({

@@ -10,7 +10,7 @@ function amount(value: number): string {
   return String(value);
 }
 
-/** Gateway timestamps are ISO-8601; paper stores milliseconds. */
+/** Gateway order timestamps are ISO-8601; paper stores milliseconds. */
 function toIso(ms: Millis): string {
   return new Date(ms).toISOString();
 }
@@ -36,32 +36,16 @@ export function toClobOrder(order: PaperOrderDocument): z.infer<typeof clobOrder
   };
 }
 
-/**
- * Paper fills are always our own. Instant book crosses are TAKER; resting fills from the
- * public trade stream are MAKER. `makerOrders` stays empty — we do not model the counterparty.
- */
+/** Poly-gate maps CLOB trades into this compact UserTrade row before returning them. */
 export function toClobTrade(trade: PaperTradeDocument): z.infer<typeof clobTradeReply> {
-  const { apiKey, makerAddress } = settings().polymarket;
-  const matchedAt = toIso(trade.match_time);
   return {
-    id: trade.trade_id,
-    outcome: trade.outcome ?? "",
-    owner: apiKey,
-    price: amount(trade.avg_price),
-    side: trade.side,
-    size: amount(trade.matched_amount),
-    status: "TRADE_STATUS_CONFIRMED",
+    tradeId: trade.trade_id,
+    orderId: trade.order_id,
     conditionId: trade.condition_id,
     assetId: trade.asset_id,
-    tokenId: trade.asset_id,
-    bucketIndex: 0,
-    feeRateBps: "0",
-    updatedAt: matchedAt,
-    makerAddress,
-    makerOrders: [],
-    matchedAt,
-    takerOrderId: (trade.trader_side ?? "TAKER") === "TAKER" ? trade.order_id : "",
-    traderSide: trade.trader_side ?? "TAKER",
-    transactionHash: "",
+    avgPrice: trade.avg_price,
+    matchedAmount: trade.matched_amount,
+    side: trade.side,
+    matchTime: trade.match_time,
   };
 }

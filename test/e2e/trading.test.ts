@@ -249,7 +249,7 @@ describe("matching against public trades", () => {
     expect(await tokenBalance(TOKEN)).toBe(10);
   });
 
-  it("exposes fills through /clob/user-trades as a paged TAKER/MAKER payload", async () => {
+  it("exposes fills through /clob/user-trades as mapped UserTrade rows", async () => {
     const placed = await placeOrder({ tokenID: TOKEN, side: "BUY", price: 0.5, size: 10 });
     await recordTrade(TOKEN, "SELL", 0.49, 10);
     await env.matchOnce();
@@ -259,29 +259,21 @@ describe("matching against public trades", () => {
     expect(res.json()).toEqual({
       items: [
         {
-          id: tradeId,
-          outcome: "Yes",
-          owner: "test-api-key",
-          price: "0.5",
-          side: "BUY",
-          size: "10",
-          status: "TRADE_STATUS_CONFIRMED",
+          tradeId,
+          orderId: placed.orderId,
           conditionId: CONDITION,
           assetId: TOKEN,
-          tokenId: TOKEN,
-          bucketIndex: 0,
-          feeRateBps: "0",
-          updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-          makerAddress: "0xtest",
-          makerOrders: [],
-          matchedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-          takerOrderId: "",
-          traderSide: "MAKER",
-          transactionHash: "",
+          avgPrice: 0.5,
+          matchedAmount: 10,
+          side: "BUY",
+          matchTime: expect.any(Number),
         },
       ],
       has_more: false,
     });
+    expect((res.json() as { items: { matchTime: number }[] }).items[0]!.matchTime).toBeGreaterThan(
+      1_700_000_000_000,
+    );
   });
 
   it("returns an empty page for an unknown trade id", async () => {
