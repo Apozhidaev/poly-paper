@@ -13,6 +13,7 @@ type Subscription = {
   timeout?: number;
 };
 
+/** Error raised while dispatching or timing out a queued event. */
 export class EventError extends Error {
   public event: EventType;
   constructor(message: string, event: EventType, err?: Error) {
@@ -21,6 +22,10 @@ export class EventError extends Error {
   }
 }
 
+/**
+ * Single-consumer event queue: handlers for a given event type run one after another, never
+ * in parallel. The poller drains `messages` on an interval while `_busy` is false.
+ */
 export class MessageQueue {
   private _busy: boolean;
   private timeout: number;
@@ -30,6 +35,11 @@ export class MessageQueue {
   private inProgress?: Message;
   private onError?: (err: EventError) => void;
 
+  /**
+   * @param interval - How often (ms) to check for queued messages. Default 250.
+   * @param timeout - Per-handler deadline (ms). Default 1 hour.
+   * @param onError - Called for fire-and-forget failures from {@link push}.
+   */
   constructor({
     interval = 250,
     timeout = 60 * 60 * 1000,
@@ -51,6 +61,7 @@ export class MessageQueue {
     }, interval);
   }
 
+  /** Invoke one subscriber with a timeout that is cleared once the handler settles. */
   private send({
     fn,
     timeout,
@@ -63,6 +74,8 @@ export class MessageQueue {
     args: any[];
   }) {
     return new Promise((resolve, reject) => {
+      // The timer is cleared once the handler settles: with a one-second tick, leaving it
+      // armed for the whole timeout would pile up thousands of pending timers.
       const timer = setTimeout(() => {
         reject(new EventError('Send message timeout', event));
       }, timeout || this.timeout);
@@ -74,6 +87,7 @@ export class MessageQueue {
     });
   }
 
+  /** Run every subscriber for `event` sequentially and collect their return values. */
   private async report({ event, args }: { event: EventType; args: any[] }) {
     const results: any[] = [];
     if (this.subscriptions[event]) {
@@ -86,6 +100,7 @@ export class MessageQueue {
     return results;
   }
 
+  /** Drain the queue: each message is fully handled before the next is taken. */
   private async processMessages() {
     this.inProgress = this.messages.shift();
     while (this.inProgress) {
@@ -100,16 +115,23 @@ export class MessageQueue {
     }
   }
 
+  /** Whether the poller is currently draining the queue. */
   get busy() {
     return this._busy;
   }
 
+  /** Remove a previously registered handler for `event`. */
   public unsubscribe(event: EventType, fn: Fn) {
     if (this.subscriptions[event]) {
       this.subscriptions[event] = this.subscriptions[event].filter((x) => x.fn !== fn);
     }
   }
 
+  /**
+   * Register a handler for `event`. Handlers for the same event run sequentially.
+   *
+   * @returns Unsubscribe function for this specific handler.
+   */
   public subscribe(event: EventType, fn: Fn, timeout?: number) {
     if (!this.subscriptions[event]) {
       this.subscriptions[event] = [];
@@ -118,6 +140,10 @@ export class MessageQueue {
     return () => this.unsubscribe(event, fn);
   }
 
+  /**
+   * Enqueue `event` and wait until all of its subscribers have finished.
+   * Resolves with an array of their return values (one per subscriber).
+   */
   public post<T = any>(event: EventType, ...args: any[]) {
     return new Promise<T[]>((resolve, reject) => {
       this.messages.push({
@@ -129,6 +155,10 @@ export class MessageQueue {
     });
   }
 
+  /**
+   * Fire-and-forget enqueue. Failures go to the constructor's `onError` callback;
+   * there is no promise for the caller.
+   */
   public push(event: EventType, ...args: any[]) {
     this.messages.push({
       event,
@@ -137,10 +167,22 @@ export class MessageQueue {
     });
   }
 
+  /** Whether at least one queued (not yet started) message has this `event` type. */
   public pending(event: EventType) {
     return this.messages.some((x) => x.event === event);
   }
 
+  /**
+   * Whether the queue has no work for the given events — neither waiting nor in flight.
+   *
+   * - No arguments: `true` only if the entire queue is idle (`messages` empty and nothing
+   *   in `inProgress`).
+   * - With event types: `true` if **none** of those types are queued or currently being
+   *   processed. Other event types still in the queue do not affect the result.
+   *
+   * Used by {@link Scheduler} to skip posting a tick while a previous tick of the same
+   * type is still outstanding, so slow handlers do not pile up duplicate jobs.
+   */
   public empty(...events: EventType[]) {
     if (events.length) {
       for (let i = 0; i < events.length; i++) {
@@ -153,6 +195,7 @@ export class MessageQueue {
     return this.messages.length === 0 && !this.inProgress;
   }
 
+  /** Stop the poller interval. In-flight work is not cancelled. */
   public destroy() {
     clearInterval(this.timerId);
     this._busy = false;
