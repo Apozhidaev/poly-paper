@@ -4,7 +4,7 @@ export type EventType = string | symbol;
 type Message = {
   event: EventType;
   args: any[];
-  resolve?: (results: any[]) => void;
+  resolve?: (results: any) => void;
   reject?: (error: any) => void;
 };
 
@@ -144,8 +144,8 @@ export class MessageQueue {
    * Enqueue `event` and wait until all of its subscribers have finished.
    * Resolves with an array of their return values (one per subscriber).
    */
-  public post<T = any>(event: EventType, ...args: any[]) {
-    return new Promise<T[]>((resolve, reject) => {
+  public post<T extends any[] = any[]>(event: EventType, ...args: any[]) {
+    return new Promise<T>((resolve, reject) => {
       this.messages.push({
         event,
         args,
