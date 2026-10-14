@@ -106,6 +106,18 @@ export const errorReply = z.object({
   error: z.string(),
 });
 
+export const mergeBody = z.object({
+  conditionId: z.string().min(1).optional(),
+  legs: z.array(z.string().min(1)).min(1).optional(),
+  amount: z.union([z.literal("max"), z.number().positive()]).optional().default("max"),
+  metadata: z.string().optional(),
+});
+
+export const mergeReply = z.object({
+  transactionHash: z.string(),
+  transactionId: z.string().nullable(),
+});
+
 /** Upstream payloads are documented as free-form objects so proxying cannot drop fields. */
 export const passthroughObject = z.record(z.unknown());
 export const passthroughArray = z.array(passthroughObject);

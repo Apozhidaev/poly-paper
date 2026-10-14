@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 
+import { mergePositions } from "../../service/merge.js";
 import * as orderService from "../../service/orders.js";
 import * as walletService from "../../service/wallet.js";
 import { toClobOrder, toClobTrade } from "../clobFormat.js";
@@ -10,6 +11,8 @@ import {
   cancelOrderReply,
   clobOrderReply,
   errorReply,
+  mergeBody,
+  mergeReply,
   orderIdParams,
   postOrderBody,
   postOrderReply,
@@ -125,6 +128,33 @@ export const clobRoutes: FastifyPluginAsync = async (fastify) => {
         await orderService.listTrades({ id, makerAddress, market, assetId, before, after })
       ).map(toClobTrade);
       return { items, has_more: false };
+    },
+  );
+
+  app.post(
+    "/clob/merge",
+    {
+      schema: {
+        tags: ["clob"],
+        summary: "Merge complementary positions into collateral",
+        description:
+          "Burns equal free Yes/No shares and credits the same USDC. Provide conditionId " +
+          "(binary market). Protocol V2 legs are not supported.",
+        body: mergeBody,
+        response: { 200: mergeReply, 400: errorReply },
+      },
+    },
+    async (request, reply) => {
+      const result = await mergePositions({
+        conditionId: request.body.conditionId,
+        legs: request.body.legs,
+        amount: request.body.amount,
+      });
+      if (!result.ok) return reply.code(400).send({ error: result.error });
+      return {
+        transactionHash: result.transactionHash,
+        transactionId: result.transactionId,
+      };
     },
   );
 

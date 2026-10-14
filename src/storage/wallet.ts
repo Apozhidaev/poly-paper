@@ -118,6 +118,24 @@ export async function creditTokens(assetId: string, qty: number): Promise<void> 
 }
 
 /**
+ * Burn `amount` of each outcome token (free balances only) and credit the same USDC.
+ * One complete set → $1. Returns false when any leg is short.
+ */
+export async function mergeCompleteSet(tokenIds: string[], amount: number): Promise<boolean> {
+  if (tokenIds.length < 2 || amount <= EPS) return false;
+
+  const filter: Record<string, unknown> = { _id: WALLET_ID };
+  const inc: Record<string, number> = { usdc_available: amount };
+  for (const tokenId of tokenIds) {
+    filter[tokenKey(tokenId)] = { $gte: amount - EPS };
+    inc[tokenKey(tokenId)] = -amount;
+  }
+
+  const res = await balances().updateOne(filter, { $inc: inc });
+  return res.modifiedCount === 1;
+}
+
+/**
  * $1 USDC per winning share; clears every outcome token of the market, free and reserved.
  * Called by the resolver only, after all live orders on the market are cancelled.
  */

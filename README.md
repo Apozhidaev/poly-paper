@@ -37,6 +37,7 @@ pnpm test        # vitest: домен + e2e на in-memory Mongo и поддел
 | GET | `/clob/order/:orderID` |
 | GET | `/clob/open-orders` |
 | GET | `/clob/user-trades` |
+| POST | `/clob/merge` |
 | GET | `/clob/usdc-balance` |
 | GET | `/clob/token-balance?token_id=` |
 

@@ -186,6 +186,7 @@ describe("swagger", () => {
         "/clob/order/{orderID}",
         "/clob/open-orders",
         "/clob/user-trades",
+        "/clob/merge",
         "/clob/usdc-balance",
         "/clob/token-balance",
         "/clob/order-book",
